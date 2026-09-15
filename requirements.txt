@@ -1,0 +1,7 @@
+aiogram>=3.6,<4
+feedparser>=6.0,<7
+requests>=2.31,<3
+beautifulsoup4>=4.12,<5
+python-dotenv>=1.0,<2
+openai>=1.40,<2
+Pillow>=10.0,<12

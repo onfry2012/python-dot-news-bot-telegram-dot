@@ -1,0 +1,121 @@
+[
+  {
+    "name": "Польша: PAP политика и общество",
+    "type": "rss",
+    "url": "https://pap-mediaroom.pl/kategoria/polityka-i-spo%C5%82eczenstwo/rss.xml",
+    "category": "польша",
+    "weight": 1.0
+  },
+  {
+    "name": "Польша: PAP все категории",
+    "type": "rss",
+    "url": "https://pap-mediaroom.pl/rss.xml",
+    "category": "польша",
+    "weight": 0.95
+  },
+  {
+    "name": "Польша: Notes from Poland",
+    "type": "rss",
+    "url": "https://notesfrompoland.com/feed/",
+    "category": "польша",
+    "weight": 0.9
+  },
+  {
+    "name": "Польша: главные новости",
+    "type": "rss",
+    "url": "https://wiadomosci.onet.pl/.feed",
+    "category": "польша",
+    "weight": 0.95
+  },
+  {
+    "name": "Польша: политика",
+    "type": "rss",
+    "url": "https://wydarzenia.interia.pl/feed",
+    "category": "политика",
+    "weight": 0.9
+  },
+  {
+    "name": "Украинцы в Польше",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Ukrai%C5%84cy%20w%20Polsce&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "украинцы в польше",
+    "weight": 0.75
+  },
+  {
+    "name": "Украина: Украинская правда — главные",
+    "type": "rss",
+    "url": "https://www.pravda.com.ua/rss/view_mainnews/",
+    "category": "украина",
+    "weight": 0.95
+  },
+  {
+    "name": "Украина: Украинская правда — новости",
+    "type": "rss",
+    "url": "https://www.pravda.com.ua/rss/view_news/",
+    "category": "украина",
+    "weight": 0.9
+  },
+  {
+    "name": "Украина: главные новости",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Ukraina%20wiadomo%C5%9Bci%20OR%20Ukraine%20news&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "украина",
+    "weight": 0.8
+  },
+  {
+    "name": "Польша: безопасность",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Polska%20bezpiecze%C5%84stwo%20granica&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "безопасность",
+    "weight": 0.75
+  },
+  {
+    "name": "Польша: экономика и цены",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Polska%20gospodarka%20ceny%20praca&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "экономика",
+    "weight": 0.75
+  },
+  {
+    "name": "Польша и мир: важное",
+    "type": "rss",
+    "url": "https://www.tvn24.pl/swiat.xml",
+    "category": "мир",
+    "weight": 1.0
+  },
+  {
+    "name": "Мир: BBC World",
+    "type": "rss",
+    "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "category": "мир",
+    "weight": 0.9
+  },
+  {
+    "name": "Мир: The Guardian",
+    "type": "rss",
+    "url": "https://www.theguardian.com/world/rss",
+    "category": "мир",
+    "weight": 0.85
+  },
+  {
+    "name": "Европа: Politico EU",
+    "type": "rss",
+    "url": "https://www.politico.eu/feed/",
+    "category": "мир",
+    "weight": 0.8
+  },
+  {
+    "name": "Мир: обсуждаемые новости",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=world%20breaking%20news&hl=en&gl=US&ceid=US:en",
+    "category": "мир",
+    "weight": 0.75
+  },
+  {
+    "name": "Технологии и ИИ",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=technologia%20AI&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "технологии",
+    "weight": 0.75
+  }
+]

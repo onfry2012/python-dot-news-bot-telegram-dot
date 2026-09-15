@@ -1,0 +1,10 @@
+.env
+.tiktok_tokens.json
+.tiktok_publish_history.json
+.dot_news_app.pid
+.tiktok_media/
+assets/tiktok_fallback_source.png
+dot_news_bot.sqlite3
+dot_news_bot.backup-*.sqlite3
+logs/
+__pycache__/
