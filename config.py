@@ -102,8 +102,10 @@ def load_config() -> Config:
         database_path=_migrate_state_file(os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"), data_dir),
         sources_path=os.getenv("SOURCES_PATH", "sources.json"),
         scan_sources_per_cycle=max(int(os.getenv("SCAN_SOURCES_PER_CYCLE", "6")), 1),
-        scan_limit_per_source=int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")),
-        scan_limit_total=int(os.getenv("SCAN_LIMIT_TOTAL", "50")),
+        # Hard caps protect the 512 MB Render instance even if an old or
+        # overly large environment value remains configured there.
+        scan_limit_per_source=max(min(int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")), 2), 1),
+        scan_limit_total=max(min(int(os.getenv("SCAN_LIMIT_TOTAL", "50")), 3), 1),
         max_news_age_hours=int(os.getenv("MAX_NEWS_AGE_HOURS", "72")),
         auto_scan_enabled=os.getenv("AUTO_SCAN_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
         scan_interval_minutes=int(os.getenv("SCAN_INTERVAL_MINUTES", "5")),
