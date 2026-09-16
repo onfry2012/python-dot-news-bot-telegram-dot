@@ -314,6 +314,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
         if len(items_to_process) >= config.scan_limit_total:
             break
 
+    source_items.clear()
+
     for item in items_to_process:
         article = await create_draft_from_item(bot, item, ranking_auto_publish=auto_publish)
         if not article:
