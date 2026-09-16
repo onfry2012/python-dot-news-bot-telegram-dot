@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 import os
+from pathlib import Path
+import shutil
 
 from dotenv import load_dotenv
 
@@ -75,6 +77,17 @@ def _persistent_path(value: str, data_dir: str) -> str:
     return os.path.join(data_dir, path)
 
 
+def _migrate_state_file(value: str, data_dir: str) -> str:
+    target = Path(_persistent_path(value, data_dir)).expanduser()
+    if not data_dir or target.exists() or Path(value).is_absolute():
+        return str(target if data_dir else value)
+    legacy = Path(value).expanduser()
+    if legacy.exists() and legacy.resolve() != target.resolve():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy, target)
+    return str(target)
+
+
 def load_config() -> Config:
     data_dir = os.getenv("DATA_DIR", "").strip()
     return Config(
@@ -83,7 +96,7 @@ def load_config() -> Config:
         channel_id=_required("TELEGRAM_CHANNEL_ID"),
         openai_api_key=_required("OPENAI_API_KEY"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        database_path=_persistent_path(os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"), data_dir),
+        database_path=_migrate_state_file(os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"), data_dir),
         sources_path=os.getenv("SOURCES_PATH", "sources.json"),
         scan_limit_per_source=int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")),
         scan_limit_total=int(os.getenv("SCAN_LIMIT_TOTAL", "50")),
@@ -108,11 +121,11 @@ def load_config() -> Config:
         tiktok_client_key=os.getenv("TIKTOK_CLIENT_KEY", ""),
         tiktok_client_secret=os.getenv("TIKTOK_CLIENT_SECRET", ""),
         tiktok_redirect_uri=os.getenv("TIKTOK_REDIRECT_URI", "http://127.0.0.1:8080/auth/tiktok/callback"),
-        tiktok_token_path=_persistent_path(os.getenv("TIKTOK_TOKEN_PATH", ".tiktok_tokens.json"), data_dir),
+        tiktok_token_path=_migrate_state_file(os.getenv("TIKTOK_TOKEN_PATH", ".tiktok_tokens.json"), data_dir),
         tiktok_test_image_url=os.getenv("TIKTOK_TEST_IMAGE_URL", ""),
         tiktok_test_title=os.getenv("TIKTOK_TEST_TITLE", "DOT News test photo"),
         tiktok_test_description=os.getenv("TIKTOK_TEST_DESCRIPTION", "Test photo post from DOT News Sandbox"),
-        tiktok_publish_history_path=_persistent_path(os.getenv("TIKTOK_PUBLISH_HISTORY_PATH", ".tiktok_publish_history.json"), data_dir),
+        tiktok_publish_history_path=_migrate_state_file(os.getenv("TIKTOK_PUBLISH_HISTORY_PATH", ".tiktok_publish_history.json"), data_dir),
         tiktok_media_base_url=os.getenv("TIKTOK_MEDIA_BASE_URL", "https://onfry2012.github.io/dot-news-legal/media/"),
         tiktok_fallback_image=os.getenv("TIKTOK_FALLBACK_IMAGE", "assets/tiktok_fallback.jpg"),
         tiktok_media_dir=_persistent_path(os.getenv("TIKTOK_MEDIA_DIR", ".tiktok_media"), data_dir),
@@ -126,3 +139,4 @@ def load_config() -> Config:
         max_telegram_auto_per_hour=max(int(os.getenv("MAX_TELEGRAM_AUTO_PER_HOUR", "12")), 1),
         max_tiktok_auto_per_scan=max(int(os.getenv("MAX_TIKTOK_AUTO_PER_SCAN", "1")), 1),
     )
+
