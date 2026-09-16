@@ -6,9 +6,12 @@ from datetime import datetime, timezone
 import logging
 import json
 import os
+import secrets
+import hmac
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
+from threading import Lock, Thread
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse, unquote
 
 from aiogram import Bot
@@ -38,6 +41,41 @@ from ai_writer import looks_untranslated_tiktok
 logger = logging.getLogger(__name__)
 _tiktok_previews: dict[int, dict] = {}
 _tiktok_latest_preview_id: int | None = None
+_web_sessions: dict[str, float] = {}
+_web_sessions_lock = Lock()
+
+
+def _session_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def _cookie_session(handler: BaseHTTPRequestHandler) -> str | None:
+    cookie_header = handler.headers.get("Cookie", "")
+    for item in cookie_header.split(";"):
+        key, _, value = item.strip().partition("=")
+        if key == "dot_news_session" and value:
+            return value
+    return None
+
+
+def _is_authenticated(handler: BaseHTTPRequestHandler) -> bool:
+    token = _cookie_session(handler)
+    if not token:
+        return False
+    now = time.time()
+    with _web_sessions_lock:
+        expires_at = _web_sessions.get(token, 0)
+        if expires_at <= now:
+            _web_sessions.pop(token, None)
+            return False
+        _web_sessions[token] = now + 86400
+    return True
+
+
+def _safe_next(value: str) -> str:
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+    return "/"
 
 
 def _setting_int(db: Database, name: str, default: int, minimum: int = 0, maximum: int = 1440) -> int:
@@ -561,9 +599,64 @@ class DashboardHandler(BaseHTTPRequestHandler):
     github_media_path: str
     github_token: str
     publication_interval_minutes: int
+    web_username: str
+    web_password: str
+
+    def _require_auth(self, next_path: str) -> bool:
+        if _is_authenticated(self):
+            return True
+        location = "/login?" + urlencode({"next": _safe_next(next_path)})
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.end_headers()
+        return False
+
+    def _login_page(self, status: int = 200, message: str = "", next_path: str = "/") -> None:
+        notice = f'<p class="error">{escape(message)}</p>' if message else ""
+        body = f'''<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DOT NEWS — вход</title>
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#071017;color:#eef5f7;font:16px system-ui,sans-serif}}main{{width:min(360px,calc(100% - 32px));padding:28px;border:1px solid #19333d;border-radius:10px;background:#0d1b22;box-sizing:border-box}}h1{{margin:0 0 8px;font-size:24px}}p{{color:#8da5ad;margin:0 0 20px}}label{{display:block;color:#8da5ad;font-size:13px;margin:14px 0 6px}}input{{width:100%;box-sizing:border-box;padding:11px;border:1px solid #29434c;border-radius:6px;background:#071017;color:#eef5f7;font:inherit}}button{{width:100%;margin-top:20px;padding:11px;border:0;border-radius:6px;background:#24c6d8;color:#061014;font-weight:700;cursor:pointer}}.error{{color:#ff9b9b;margin:0 0 12px}}</style>
+<main><h1>🔴 DOT NEWS</h1><p>Вход в редакционную панель</p>{notice}<form method="post" action="/login"><input type="hidden" name="next" value="{escape(_safe_next(next_path), quote=True)}"><label for="username">Логин</label><input id="username" name="username" autocomplete="username" required><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">Войти</button></form></main></html>'''.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _login(self, form: dict[str, list[str]]) -> None:
+        username = form.get("username", [""])[0]
+        password = form.get("password", [""])[0]
+        next_path = _safe_next(form.get("next", ["/"])[0])
+        valid_user = hmac.compare_digest(username, self.web_username)
+        valid_password = hmac.compare_digest(password, self.web_password)
+        if not (valid_user and valid_password):
+            self._login_page(401, "Неверный логин или пароль", next_path)
+            return
+        token = _session_token()
+        with _web_sessions_lock:
+            _web_sessions[token] = time.time() + 86400
+        self.send_response(303)
+        self.send_header("Set-Cookie", f"dot_news_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+        self.send_header("Location", next_path)
+        self.end_headers()
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/login":
+            query = parse_qs(parsed.query)
+            self._login_page(next_path=_safe_next(query.get("next", ["/"])[0]))
+            return
+        if parsed.path == "/logout":
+            token = _cookie_session(self)
+            with _web_sessions_lock:
+                if token:
+                    _web_sessions.pop(token, None)
+            self.send_response(303)
+            self.send_header("Set-Cookie", "dot_news_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")
+            self.send_header("Location", "/login")
+            self.end_headers()
+            return
+        if not self._require_auth(self.path):
+            return
         if parsed.path.startswith("/tiktok/media/"):
             self._serve_tiktok_media(parsed.path)
             return
@@ -689,6 +782,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         global _tiktok_latest_preview_id
         path = urlparse(self.path).path
+        if path == "/login":
+            length = int(self.headers.get("Content-Length", "0"))
+            form = parse_qs(self.rfile.read(length).decode("utf-8"))
+            self._login(form)
+            return
+        if not self._require_auth(self.path):
+            return
         if path not in {"/publish", "/action"}:
             self.send_error(404)
             return
@@ -1105,6 +1205,8 @@ def start_web_server(
     tiktok_auto_publish_score: int = 85,
     ranking_dry_run: bool = True,
     tiktok_auto_publish_default: bool = False,
+    web_username: str = "admin",
+    web_password: str = "",
 ) -> Thread:
     handler = type(
         "ConfiguredDashboardHandler",
@@ -1135,9 +1237,12 @@ def start_web_server(
             "tiktok_auto_publish_score": tiktok_auto_publish_score,
             "ranking_dry_run": ranking_dry_run,
             "tiktok_auto_publish_default": tiktok_auto_publish_default,
+            "web_username": web_username,
+            "web_password": web_password,
         },
     )
     server = ThreadingHTTPServer((host, port), handler)
     thread = Thread(target=server.serve_forever, name="dot-news-web", daemon=True)
     thread.start()
     return thread
+
