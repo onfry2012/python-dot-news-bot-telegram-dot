@@ -332,7 +332,6 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
 
     logger.info("Scan memory: stage=ai_and_ranking_done rss_mb=%s created=%s", _rss_mb(), created)
     items_to_process.clear()
-    new_articles.clear()
     gc.collect()
 
     if not auto_publish:
@@ -408,6 +407,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
                 await send_draft(bot, article)
         else:
             db.record_automation_run(article.id, article.event_id, article.importance_score, "LOW_PRIORITY", "NOT_ELIGIBLE", "below_review_threshold")
+    new_articles.clear()
+    gc.collect()
     return created
 
 
