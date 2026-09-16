@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 import json
 from pathlib import Path
 
 import feedparser
+import requests
 
 from config import load_config
+
+
+MAX_RSS_BYTES = 1 * 1024 * 1024
+RSS_TIMEOUT_SECONDS = 20
 
 
 @dataclass(frozen=True)
@@ -35,7 +41,31 @@ def load_sources(path: str) -> list[Source]:
 
 
 def fetch_news(source: Source, limit: int = 5) -> list[NewsItem]:
-    feed = feedparser.parse(source.url)
+    response = None
+    try:
+        response = requests.get(
+            source.url,
+            headers={"User-Agent": "DOT-News/1.0"},
+            timeout=RSS_TIMEOUT_SECONDS,
+            stream=True,
+        )
+        response.raise_for_status()
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > MAX_RSS_BYTES:
+                raise RuntimeError(f"RSS source too large: {source.name}")
+            chunks.append(chunk)
+        feed = feedparser.parse(BytesIO(b"".join(chunks)).read())
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Could not fetch RSS source: {source.name}") from exc
+    finally:
+        if response is not None:
+            response.close()
+
     if getattr(feed, "bozo", False) and not feed.entries:
         raise RuntimeError(f"Could not parse RSS source: {source.name}")
 
