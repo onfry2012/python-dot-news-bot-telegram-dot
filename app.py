@@ -57,6 +57,8 @@ def main() -> None:
             config.tiktok_auto_publish_score,
             config.ranking_dry_run,
             config.tiktok_auto_publish_enabled,
+            config.web_username,
+            config.web_password,
         )
         logger = logging.getLogger(__name__)
         logger.info("Web panel bound on %s:%s", config.web_host, config.web_port)
@@ -71,3 +73,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
