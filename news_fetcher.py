@@ -98,6 +98,7 @@ def fetch_news(source: Source, limit: int = 5) -> list[NewsItem]:
                 source_weight=source.weight,
             )
         )
+    del feed
     return items
 
 

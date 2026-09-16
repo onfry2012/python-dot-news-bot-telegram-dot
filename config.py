@@ -18,6 +18,7 @@ class Config:
     openai_model: str
     database_path: str
     sources_path: str
+    scan_sources_per_cycle: int
     scan_limit_per_source: int
     scan_limit_total: int
     max_news_age_hours: int
@@ -100,8 +101,9 @@ def load_config() -> Config:
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         database_path=_migrate_state_file(os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"), data_dir),
         sources_path=os.getenv("SOURCES_PATH", "sources.json"),
-        scan_limit_per_source=min(max(int(os.getenv("SCAN_LIMIT_PER_SOURCE", "2")), 1), 2),
-        scan_limit_total=min(max(int(os.getenv("SCAN_LIMIT_TOTAL", "3")), 1), 3),
+        scan_sources_per_cycle=max(int(os.getenv("SCAN_SOURCES_PER_CYCLE", "6")), 1),
+        scan_limit_per_source=int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")),
+        scan_limit_total=int(os.getenv("SCAN_LIMIT_TOTAL", "50")),
         max_news_age_hours=int(os.getenv("MAX_NEWS_AGE_HOURS", "72")),
         auto_scan_enabled=os.getenv("AUTO_SCAN_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
         scan_interval_minutes=int(os.getenv("SCAN_INTERVAL_MINUTES", "5")),

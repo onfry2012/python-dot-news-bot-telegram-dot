@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from html import escape
+import gc
 import json
 import logging
 from pathlib import Path
@@ -300,27 +301,27 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     pending_ids = {article.id for article in pending_articles}
     new_articles: list[Article] = list(pending_articles)
     sources = load_sources(config.sources_path)
-    source_items: list[list[NewsItem]] = []
-    for source in sources:
+    source_count = len(sources)
+    source_offset = int(db.get_setting("scan_source_offset", "0")) % max(source_count, 1)
+    cycle_sources = [
+        sources[(source_offset + index) % source_count]
+        for index in range(min(config.scan_sources_per_cycle, source_count))
+    ] if source_count else []
+    db.set_setting("scan_source_offset", str((source_offset + len(cycle_sources)) % max(source_count, 1)))
+    items_to_process: list[NewsItem] = []
+    for source in cycle_sources:
         try:
             items = fetch_news(source, limit=config.scan_limit_per_source)
         except Exception as exc:
             await bot.send_message(config.admin_id, f"Не удалось прочитать RSS {source.name}: {exc}")
             continue
-        source_items.append(items)
-
-    logger.info("Scan memory: stage=rss_loaded rss_mb=%s sources=%s", _rss_mb(), len(source_items))
-
-    # Round-robin keeps every source represented before the global scan cap is reached.
-    items_to_process: list[NewsItem] = []
-    for item_index in range(config.scan_limit_per_source):
-        for items in source_items:
-            if item_index < len(items):
-                items_to_process.append(items[item_index])
-                if len(items_to_process) >= config.scan_limit_total:
-                    break
+        items_to_process.extend(items)
+        del items
         if len(items_to_process) >= config.scan_limit_total:
             break
+
+    logger.info("Scan memory: stage=rss_loaded rss_mb=%s sources=%s", _rss_mb(), len(cycle_sources))
+    gc.collect()
 
     for item in items_to_process:
         article = await create_draft_from_item(bot, item, ranking_auto_publish=auto_publish)
@@ -330,6 +331,9 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
         created += 1
 
     logger.info("Scan memory: stage=ai_and_ranking_done rss_mb=%s created=%s", _rss_mb(), created)
+    items_to_process.clear()
+    new_articles.clear()
+    gc.collect()
 
     if not auto_publish:
         if send_drafts:
