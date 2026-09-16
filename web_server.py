@@ -41,6 +41,7 @@ from ai_writer import looks_untranslated_tiktok
 logger = logging.getLogger(__name__)
 _tiktok_previews: dict[int, dict] = {}
 _tiktok_latest_preview_id: int | None = None
+MAX_TIKTOK_PREVIEWS = 25
 _web_sessions: dict[str, float] = {}
 _web_sessions_lock = Lock()
 
@@ -974,6 +975,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "review_required": review_required,
                         "review_note": "Manual review required: possible untranslated source headline." if review_required else "",
                     }
+                    while len(_tiktok_previews) > MAX_TIKTOK_PREVIEWS:
+                        oldest_id = next(iter(_tiktok_previews))
+                        _tiktok_previews.pop(oldest_id, None)
                     _tiktok_latest_preview_id = article.id
                     self.db.set_tiktok_status(article.id, "REVIEW_TRANSLATION" if review_required else None, "untranslated_source" if review_required else None)
                     self._redirect("TikTok preview ready", tiktok_preview=article.id)
