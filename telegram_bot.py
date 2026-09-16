@@ -362,12 +362,14 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     )
     selected = unique_candidates[: min(config.max_telegram_auto_per_scan, hourly_remaining)]
     selected_ids = {article.id for article in selected}
+    logger.info("Auto publish candidates selected: count=%s ids=%s", len(selected), [article.id for article in selected])
     tiktok_auto_count = 0
     for position, article in enumerate(selected):
         try:
             if position and get_publication_interval_minutes() > 0:
                 await asyncio.sleep(get_publication_interval_minutes() * 60)
             await publish_article(bot, article)
+            logger.info("Telegram auto publish succeeded: article=%s", article.id)
             db.set_status(article.id, "published", mode="auto")
             db.record_publication_event("telegram", article.id, article.event_id, "auto", "PUBLISHED")
             if article.event_id:
@@ -968,9 +970,24 @@ async def publish_article(bot: Bot, article: Article) -> None:
     for attempt in range(max(config.http_retry_count, 1)):
         try:
             if article.image_url:
-                await bot.send_photo(config.channel_id, photo=article.image_url, caption=text, parse_mode=ParseMode.HTML)
+                try:
+                    await asyncio.wait_for(
+                        bot.send_photo(config.channel_id, photo=article.image_url, caption=text, parse_mode=ParseMode.HTML),
+                        timeout=30,
+                    )
+                except Exception as image_exc:
+                    # A broken or slow source image must not block the whole
+                    # scheduler. Preserve the news as a text post instead.
+                    logger.warning("Telegram image failed for article=%s: %s; sending text fallback", article.id, image_exc)
+                    await asyncio.wait_for(
+                        bot.send_message(config.channel_id, text, parse_mode=ParseMode.HTML),
+                        timeout=30,
+                    )
             else:
-                await bot.send_message(config.channel_id, text, parse_mode=ParseMode.HTML)
+                await asyncio.wait_for(
+                    bot.send_message(config.channel_id, text, parse_mode=ParseMode.HTML),
+                    timeout=30,
+                )
             return
         except Exception as exc:
             last_error = exc
