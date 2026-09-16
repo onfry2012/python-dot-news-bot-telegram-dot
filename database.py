@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from pathlib import Path
 import sqlite3
 from statistics import median
 from typing import Iterable
@@ -28,6 +29,7 @@ class Article:
 class Database:
     def __init__(self, path: str) -> None:
         self.path = path
+        Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         self.init()
 
     def connect(self) -> sqlite3.Connection:
