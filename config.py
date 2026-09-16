@@ -27,6 +27,8 @@ class Config:
     web_enabled: bool
     web_host: str
     web_port: int
+    web_username: str
+    web_password: str
     event_similarity_threshold: float
     event_match_window_hours: int
     event_match_max_candidates: int
@@ -107,6 +109,8 @@ def load_config() -> Config:
         web_enabled=os.getenv("WEB_ENABLED", "true").lower() in {"1", "true", "yes", "on"},
         web_host=os.getenv("WEB_HOST", "127.0.0.1"),
         web_port=int(os.getenv("WEB_PORT", "8080")),
+        web_username=os.getenv("WEB_USERNAME", "admin"),
+        web_password=_required("WEB_PASSWORD"),
         event_similarity_threshold=float(os.getenv("EVENT_SIMILARITY_THRESHOLD", "0.82")),
         event_match_window_hours=int(os.getenv("EVENT_MATCH_WINDOW_HOURS", "48")),
         event_match_max_candidates=int(os.getenv("EVENT_MATCH_MAX_CANDIDATES", "100")),
