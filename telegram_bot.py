@@ -33,6 +33,11 @@ from news_ranker import calculate_importance, decision as ranking_decision, impo
 from tiktok_media import TikTokMediaError, prepare_tiktok_image, publish_image_to_public_storage
 from tiktok_publisher import TikTokAPIError, TikTokSettings, available_privacy_levels, get_creator_info, normalize_publish_status, publish_photo
 
+try:
+    import resource
+except ImportError:  # Windows development environment
+    resource = None
+
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -40,6 +45,16 @@ router = Router()
 config = load_config()
 db = Database(config.database_path)
 writer = AIWriter(config.openai_api_key, config.openai_model, config.openai_retry_count)
+
+
+def _rss_mb() -> float:
+    """Return process high-water RSS in MB without adding a runtime dependency."""
+    if resource is None:
+        return -1.0
+    try:
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+    except (AttributeError, OSError):
+        return -1.0
 
 
 def admin_only(message: Message) -> bool:
@@ -269,6 +284,7 @@ def recalculate_pending_drafts() -> tuple[int, int]:
 
 
 async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = False) -> int:
+    logger.info("Scan memory: stage=start rss_mb=%s", _rss_mb())
     created = 0
     if auto_publish:
         recalculate_pending_drafts()
@@ -284,6 +300,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             await bot.send_message(config.admin_id, f"Не удалось прочитать RSS {source.name}: {exc}")
             continue
         source_items.append(items)
+
+    logger.info("Scan memory: stage=rss_loaded rss_mb=%s sources=%s", _rss_mb(), len(source_items))
 
     # Round-robin keeps every source represented before the global scan cap is reached.
     items_to_process: list[NewsItem] = []
@@ -302,6 +320,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             continue
         new_articles.append(article)
         created += 1
+
+    logger.info("Scan memory: stage=ai_and_ranking_done rss_mb=%s created=%s", _rss_mb(), created)
 
     if not auto_publish:
         if send_drafts:
