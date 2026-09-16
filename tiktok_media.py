@@ -16,6 +16,8 @@ from PIL import Image, ImageOps
 logger = logging.getLogger(__name__)
 MAX_IMAGE_EDGE = 1080
 MAX_SOURCE_IMAGE_BYTES = 15 * 1024 * 1024
+MAX_SOURCE_IMAGE_EDGE = 6000
+Image.MAX_IMAGE_PIXELS = MAX_SOURCE_IMAGE_EDGE * MAX_SOURCE_IMAGE_EDGE
 
 
 @dataclass
@@ -64,6 +66,11 @@ def _read_source(source_image_url: str) -> bytes:
 def _convert_to_jpeg(source: bytes, output_path: Path) -> None:
     try:
         with Image.open(BytesIO(source)) as original:
+            if max(original.size) > MAX_SOURCE_IMAGE_EDGE:
+                raise TikTokMediaError(
+                    "image_conversion_failed",
+                    "Фото новости имеет слишком большое разрешение для обработки",
+                )
             image = ImageOps.exif_transpose(original).convert("RGB")
             image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE), Image.Resampling.LANCZOS)
             output_path.parent.mkdir(parents=True, exist_ok=True)
