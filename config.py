@@ -65,14 +65,25 @@ def _required(name: str) -> str:
     return value
 
 
+def _persistent_path(value: str, data_dir: str) -> str:
+    """Put relative state paths on Render's persistent disk when configured."""
+    if not data_dir:
+        return value
+    path = os.path.expanduser(value)
+    if os.path.isabs(path):
+        return path
+    return os.path.join(data_dir, path)
+
+
 def load_config() -> Config:
+    data_dir = os.getenv("DATA_DIR", "").strip()
     return Config(
         bot_token=_required("TELEGRAM_BOT_TOKEN"),
         admin_id=int(_required("TELEGRAM_ADMIN_ID")),
         channel_id=_required("TELEGRAM_CHANNEL_ID"),
         openai_api_key=_required("OPENAI_API_KEY"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        database_path=os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"),
+        database_path=_persistent_path(os.getenv("DATABASE_PATH", "dot_news_bot.sqlite3"), data_dir),
         sources_path=os.getenv("SOURCES_PATH", "sources.json"),
         scan_limit_per_source=int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")),
         scan_limit_total=int(os.getenv("SCAN_LIMIT_TOTAL", "50")),
@@ -90,21 +101,21 @@ def load_config() -> Config:
         importance_review_min=int(os.getenv("IMPORTANCE_REVIEW_MIN", "50")),
         openai_retry_count=int(os.getenv("OPENAI_RETRY_COUNT", "3")),
         http_retry_count=int(os.getenv("HTTP_RETRY_COUNT", "3")),
-        log_file=os.getenv("LOG_FILE", "logs/dot_news.log"),
+        log_file=_persistent_path(os.getenv("LOG_FILE", "logs/dot_news.log"), data_dir),
         log_max_bytes=int(os.getenv("LOG_MAX_BYTES", "5242880")),
         log_backup_count=int(os.getenv("LOG_BACKUP_COUNT", "3")),
         ranking_dry_run=os.getenv("RANKING_DRY_RUN", "true").lower() in {"1", "true", "yes", "on"},
         tiktok_client_key=os.getenv("TIKTOK_CLIENT_KEY", ""),
         tiktok_client_secret=os.getenv("TIKTOK_CLIENT_SECRET", ""),
         tiktok_redirect_uri=os.getenv("TIKTOK_REDIRECT_URI", "http://127.0.0.1:8080/auth/tiktok/callback"),
-        tiktok_token_path=os.getenv("TIKTOK_TOKEN_PATH", ".tiktok_tokens.json"),
+        tiktok_token_path=_persistent_path(os.getenv("TIKTOK_TOKEN_PATH", ".tiktok_tokens.json"), data_dir),
         tiktok_test_image_url=os.getenv("TIKTOK_TEST_IMAGE_URL", ""),
         tiktok_test_title=os.getenv("TIKTOK_TEST_TITLE", "DOT News test photo"),
         tiktok_test_description=os.getenv("TIKTOK_TEST_DESCRIPTION", "Test photo post from DOT News Sandbox"),
-        tiktok_publish_history_path=os.getenv("TIKTOK_PUBLISH_HISTORY_PATH", ".tiktok_publish_history.json"),
+        tiktok_publish_history_path=_persistent_path(os.getenv("TIKTOK_PUBLISH_HISTORY_PATH", ".tiktok_publish_history.json"), data_dir),
         tiktok_media_base_url=os.getenv("TIKTOK_MEDIA_BASE_URL", "https://onfry2012.github.io/dot-news-legal/media/"),
         tiktok_fallback_image=os.getenv("TIKTOK_FALLBACK_IMAGE", "assets/tiktok_fallback.jpg"),
-        tiktok_media_dir=os.getenv("TIKTOK_MEDIA_DIR", ".tiktok_media"),
+        tiktok_media_dir=_persistent_path(os.getenv("TIKTOK_MEDIA_DIR", ".tiktok_media"), data_dir),
         github_media_repo=os.getenv("GITHUB_MEDIA_REPO", ""),
         github_media_branch=os.getenv("GITHUB_MEDIA_BRANCH", "main"),
         github_media_path=os.getenv("GITHUB_MEDIA_PATH", "media"),
