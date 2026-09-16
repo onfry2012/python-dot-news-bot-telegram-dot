@@ -48,7 +48,15 @@ writer = AIWriter(config.openai_api_key, config.openai_model, config.openai_retr
 
 
 def _rss_mb() -> float:
-    """Return process high-water RSS in MB without adding a runtime dependency."""
+    """Return current process RSS in MB without adding a runtime dependency."""
+    try:
+        # Render/Linux exposes the current resident set size here. Unlike
+        # ru_maxrss, this value is not a high-water mark.
+        for line in Path("/proc/self/status").read_text(encoding="ascii").splitlines():
+            if line.startswith("VmRSS:"):
+                return round(int(line.split()[1]) / 1024, 1)
+    except (FileNotFoundError, OSError, ValueError, IndexError):
+        pass
     if resource is None:
         return -1.0
     try:
@@ -313,8 +321,6 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
                     break
         if len(items_to_process) >= config.scan_limit_total:
             break
-
-    source_items.clear()
 
     for item in items_to_process:
         article = await create_draft_from_item(bot, item, ranking_auto_publish=auto_publish)
@@ -967,3 +973,4 @@ async def publish_article(bot: Bot, article: Article) -> None:
             if attempt + 1 < max(config.http_retry_count, 1):
                 await asyncio.sleep((2, 5, 10)[min(attempt, 2)])
     raise RuntimeError(f"Telegram publish failed after retries: {last_error}") from last_error
+
