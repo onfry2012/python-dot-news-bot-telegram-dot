@@ -77,6 +77,41 @@
     "weight": 0.75
   },
   {
+    "name": "Польша: Варшава и регионы",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Warszawa%20OR%20Polska%20samorz%C4%85d&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "польша",
+    "weight": 0.8
+  },
+  {
+    "name": "Польша: украинцы и миграция",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Ukrai%C5%84cy%20Polska%20migracja%20%C5%9Bwiadczenia&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "украинцы в польше",
+    "weight": 0.8
+  },
+  {
+    "name": "Польша: правительство и парламент",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Polska%20rz%C4%85d%20Sejm%20polityka&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "политика",
+    "weight": 0.82
+  },
+  {
+    "name": "Украина: война и дипломатия",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=Ukraina%20wojna%20dyplomacja%20pok%C3%B3j&hl=pl&gl=PL&ceid=PL:pl",
+    "category": "украина",
+    "weight": 0.82
+  },
+  {
+    "name": "Мир: геополитика и конфликты",
+    "type": "rss",
+    "url": "https://news.google.com/rss/search?q=geopolitics%20OR%20international%20conflict&hl=en&gl=US&ceid=US:en",
+    "category": "мир",
+    "weight": 0.8
+  },
+  {
     "name": "Польша и мир: важное",
     "type": "rss",
     "url": "https://www.tvn24.pl/swiat.xml",
@@ -119,3 +154,4 @@
     "weight": 0.75
   }
 ]
+
