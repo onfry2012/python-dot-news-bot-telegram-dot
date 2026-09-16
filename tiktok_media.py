@@ -15,6 +15,7 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 MAX_IMAGE_EDGE = 1080
+MAX_SOURCE_IMAGE_BYTES = 15 * 1024 * 1024
 
 
 @dataclass
@@ -29,9 +30,29 @@ class TikTokMediaError(RuntimeError):
 def _read_source(source_image_url: str) -> bytes:
     if source_image_url.lower().startswith(("http://", "https://")):
         try:
-            response = requests.get(source_image_url, timeout=30, headers={"User-Agent": "DOT-News/1.0"})
+            response = requests.get(
+                source_image_url,
+                timeout=30,
+                headers={"User-Agent": "DOT-News/1.0"},
+                stream=True,
+            )
             response.raise_for_status()
-            return response.content
+            chunks: list[bytes] = []
+            total = 0
+            try:
+                for chunk in response.iter_content(chunk_size=128 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > MAX_SOURCE_IMAGE_BYTES:
+                        raise TikTokMediaError(
+                            "image_download_failed",
+                            "Фото новости слишком большое для обработки",
+                        )
+                    chunks.append(chunk)
+            finally:
+                response.close()
+            return b"".join(chunks)
         except requests.RequestException as exc:
             raise TikTokMediaError("image_download_failed", "Не удалось скачать фото новости") from exc
     try:
@@ -148,3 +169,4 @@ def publish_image_to_public_storage(
         "storage_public_url_unavailable",
         f"Изображение загружено, но public URL пока не отвечает HTTP 200 ({status_text})",
     )
+
