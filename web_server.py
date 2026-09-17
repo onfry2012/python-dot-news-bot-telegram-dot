@@ -413,11 +413,19 @@ def _tiktok_preview_panel(db: Database, preview_id: int | None) -> str:
         f'<div><label>Public image URL</label><div class="tiktok-value"><a href="{escape(public_url, quote=True)}" target="_blank" rel="noreferrer">{escape(public_url)}</a></div></div>'
         if public_url else ""
     )
+    retry_storage_html = ""
+    if not public_url:
+        retry_storage_html = (
+            '<form method="post" action="/action">'
+            '<input type="hidden" name="action" value="tiktok_retry_storage">'
+            f'<input type="hidden" name="article_id" value="{article.id}">'
+            '<button class="tool" type="submit">🔄 Повторить проверку public URL</button></form>'
+        )
     review_note = str(preview.get("review_note") or "")
     if review_note:
         storage_note = f"{storage_note} {review_note}".strip()
     return f'''<section class="tiktok-preview-panel"><div class="section-head"><h2>Preview: {escape(article.original_title)}</h2><span class="updated">TikTok manual review</span></div>
-<div class="tiktok-content"><div><img class="tiktok-preview" src="/tiktok/media/{quote(local_name)}" alt="Prepared TikTok image"><small class="tiktok-preview-note">{escape(storage_note)}{fallback_note}</small></div><div class="tiktok-fields"><div><label>TikTok title</label><div class="tiktok-value">{escape(str(preview.get("title", "")))}</div></div><div><label>TikTok caption</label><div class="tiktok-value">{escape(str(preview.get("caption", "")))}</div></div><div><label>Hashtags</label><div class="tiktok-value">{escape(str(preview.get("hashtags", "")))}</div></div>{public_url_html}<div><label>Article / event</label><div class="tiktok-value">article #{article.id} · event #{article.event_id or '-'} · {int(article.importance_score)}/100</div></div><div><label>Source article</label><div class="tiktok-value">{source_link}</div></div><div><label>Privacy level</label><form method="post" action="/action"><input type="hidden" name="action" value="tiktok_confirm"><input type="hidden" name="article_id" value="{article.id}"><select name="privacy_level" required{confirm_disabled}>{options_html}</select><button class="publish" type="submit"{confirm_disabled}>⬆ Загрузить в TikTok</button><a class="tool cancel" href="/">❌ Отмена</a></form>{'<small class="tiktok-error">TikTok API не получит запрос, пока не будет исправлен язык TikTok-текста.</small>' if preview.get("review_required") else ''}{'<small class="tiktok-error">TikTok API не получит запрос, пока изображение не будет доступно по verified public URL.</small>' if not public_url and not preview.get("review_required") else ''}</div></div></div></section>'''
+<div class="tiktok-content"><div><img class="tiktok-preview" src="/tiktok/media/{quote(local_name)}" alt="Prepared TikTok image"><small class="tiktok-preview-note">{escape(storage_note)}{fallback_note}</small>{retry_storage_html}</div><div class="tiktok-fields"><div><label>TikTok title</label><div class="tiktok-value">{escape(str(preview.get("title", "")))}</div></div><div><label>TikTok caption</label><div class="tiktok-value">{escape(str(preview.get("caption", "")))}</div></div><div><label>Hashtags</label><div class="tiktok-value">{escape(str(preview.get("hashtags", "")))}</div></div>{public_url_html}<div><label>Article / event</label><div class="tiktok-value">article #{article.id} · event #{article.event_id or '-'} · {int(article.importance_score)}/100</div></div><div><label>Source article</label><div class="tiktok-value">{source_link}</div></div><div><label>Privacy level</label><form method="post" action="/action"><input type="hidden" name="action" value="tiktok_confirm"><input type="hidden" name="article_id" value="{article.id}"><select name="privacy_level" required{confirm_disabled}>{options_html}</select><button class="publish" type="submit"{confirm_disabled}>⬆ Загрузить в TikTok</button><a class="tool cancel" href="/">❌ Отмена</a></form>{'<small class="tiktok-error">TikTok API не получит запрос, пока не будет исправлен язык TikTok-текста.</small>' if preview.get("review_required") else ''}{'<small class="tiktok-error">TikTok API не получит запрос, пока изображение не будет доступно по verified public URL.</small>' if not public_url and not preview.get("review_required") else ''}</div></div></div></section>'''
 
 
 def render_dashboard(
@@ -1068,6 +1076,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.db.set_tiktok_status(article.id, None, None)
                     _tiktok_previews.pop(article_id, None)
                     self._redirect(f"TikTok publication created. Status: {result['status']}")
+                    return
+                if action == "tiktok_retry_storage":
+                    article_id = int(form.get("article_id", [""])[0])
+                    preview = _tiktok_previews.get(article_id)
+                    if not preview:
+                        raise ValueError("TikTok preview истёк. Подготовьте новость ещё раз")
+                    public_url = publish_image_to_public_storage(
+                        local_path=str(preview.get("local_path", "")),
+                        base_url=self.tiktok_media_base_url,
+                        github_repo=self.github_media_repo,
+                        github_branch=self.github_media_branch,
+                        github_media_path=self.github_media_path,
+                        github_token=self.github_token,
+                    )
+                    preview["public_url"] = public_url or ""
+                    preview["storage_message"] = "Image uploaded and verified at public URL."
+                    self._redirect("Public image URL проверен", tiktok_preview=article_id)
                     return
                 if action == "tiktok_article_status":
                     article_id = int(form.get("article_id", [""])[0])
