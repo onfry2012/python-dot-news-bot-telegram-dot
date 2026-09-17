@@ -475,10 +475,10 @@ def render_dashboard(
 
     articles = [
         article
-        for article in db.list_recent(200)
+        for article in db.list_recent(60)
         if (not category or source_categories.get(article.source_name, "") == category)
         and (not search or search.casefold() in article.original_title.casefold() or search.casefold() in article.source_name.casefold())
-    ][:50]
+    ][:30]
     rows = "".join(_article_row(db, article, db.event_source_count(article.event_id)) for article in articles)
     if not rows:
         empty_text = f"По запросу «{escape(search)}» ничего не найдено" if search else "Новостей пока нет"
