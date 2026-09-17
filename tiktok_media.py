@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from io import BytesIO
 import logging
 from pathlib import Path
@@ -139,7 +140,7 @@ def publish_image_to_public_storage(
         "X-GitHub-Api-Version": "2022-11-28",
     }
     try:
-        existing = requests.get(api_url, headers=headers, params={"ref": github_branch}, timeout=30)
+        existing = requests.get(api_url, headers=headers, params={"ref": github_branch}, timeout=10)
         try:
             if existing.ok:
                 raise TikTokMediaError("storage_file_exists", f"Файл {filename} уже существует в GitHub storage")
@@ -153,7 +154,7 @@ def publish_image_to_public_storage(
             "content": content,
             "branch": github_branch,
         }
-        uploaded = requests.put(api_url, headers=headers, json=payload, timeout=30)
+        uploaded = requests.put(api_url, headers=headers, json=payload, timeout=10)
         try:
             if not uploaded.ok:
                 raise TikTokMediaError("storage_upload_failed", "GitHub storage не принял изображение")
@@ -163,14 +164,13 @@ def publish_image_to_public_storage(
         raise TikTokMediaError("storage_upload_failed", "Не удалось загрузить изображение в public storage") from exc
     public_url = urljoin(base_url.rstrip("/") + "/", filename)
     last_status: int | None = None
-    # GitHub Pages may deploy asynchronously after the API commit. Do not keep
-    # the dashboard request open until the proxy returns 502; the UI exposes a
-    # retry action for the remaining propagation time.
-    for delay in (0, 2, 5, 8, 10):
+    # GitHub Pages can lag behind the API. Keep the dashboard request short;
+    # the UI exposes retry for the remaining propagation time.
+    for delay in (0, 2, 4):
         if delay:
             time.sleep(delay)
         try:
-            check = requests.get(public_url, timeout=30, allow_redirects=True, stream=True)
+            check = requests.get(public_url, timeout=4, allow_redirects=True, stream=True)
             last_status = check.status_code
             check.close()
         except requests.RequestException:
