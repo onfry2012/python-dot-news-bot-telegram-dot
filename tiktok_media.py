@@ -166,7 +166,10 @@ def publish_image_to_public_storage(
                 uploaded.close()
     except requests.RequestException as exc:
         raise TikTokMediaError("storage_upload_failed", "Не удалось загрузить изображение в public storage") from exc
-    public_url = urljoin(base_url.rstrip("/") + "/", filename)
+    # GitHub Pages can cache a transient 404 for a newly deployed file.
+    # A per-file query string forces a fresh edge lookup without changing the
+    # verified path or uploading the file again.
+    public_url = urljoin(base_url.rstrip("/") + "/", filename) + f"?v={filename}"
     last_status: int | None = None
     # GitHub Pages can lag behind the API. Keep the dashboard request short;
     # the UI exposes retry for the remaining propagation time.
