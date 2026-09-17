@@ -139,27 +139,31 @@ def publish_image_to_public_storage(
         "Authorization": f"Bearer {github_token}",
         "X-GitHub-Api-Version": "2022-11-28",
     }
+    file_exists = False
     try:
         existing = requests.get(api_url, headers=headers, params={"ref": github_branch}, timeout=10)
         try:
             if existing.ok:
-                raise TikTokMediaError("storage_file_exists", f"Файл {filename} уже существует в GitHub storage")
+                # Reuse an already uploaded file during a retry; never overwrite it.
+                file_exists = True
             if existing.status_code != 404:
-                raise TikTokMediaError("storage_upload_failed", "Не удалось проверить файл в GitHub storage")
+                if not existing.ok:
+                    raise TikTokMediaError("storage_upload_failed", "Не удалось проверить файл в GitHub storage")
         finally:
             existing.close()
-        content = base64.b64encode(path.read_bytes()).decode("ascii")
-        payload = {
-            "message": f"Add DOT News TikTok image {filename}",
-            "content": content,
-            "branch": github_branch,
-        }
-        uploaded = requests.put(api_url, headers=headers, json=payload, timeout=10)
-        try:
-            if not uploaded.ok:
-                raise TikTokMediaError("storage_upload_failed", "GitHub storage не принял изображение")
-        finally:
-            uploaded.close()
+        if not file_exists:
+            content = base64.b64encode(path.read_bytes()).decode("ascii")
+            payload = {
+                "message": f"Add DOT News TikTok image {filename}",
+                "content": content,
+                "branch": github_branch,
+            }
+            uploaded = requests.put(api_url, headers=headers, json=payload, timeout=10)
+            try:
+                if not uploaded.ok:
+                    raise TikTokMediaError("storage_upload_failed", "GitHub storage не принял изображение")
+            finally:
+                uploaded.close()
     except requests.RequestException as exc:
         raise TikTokMediaError("storage_upload_failed", "Не удалось загрузить изображение в public storage") from exc
     public_url = urljoin(base_url.rstrip("/") + "/", filename)
