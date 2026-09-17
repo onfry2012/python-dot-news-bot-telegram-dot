@@ -65,6 +65,16 @@ def _is_authenticated(handler: BaseHTTPRequestHandler) -> bool:
         return False
     now = time.time()
     with _web_sessions_lock:
+        # Keep expired login sessions from accumulating on a long-running
+        # Render instance. This is intentionally bounded even if a client
+        # repeatedly opens new login sessions.
+        for session_id, expires_at in list(_web_sessions.items()):
+            if expires_at <= now:
+                _web_sessions.pop(session_id, None)
+        if len(_web_sessions) > 1000:
+            oldest = sorted(_web_sessions, key=_web_sessions.get)[: len(_web_sessions) - 1000]
+            for session_id in oldest:
+                _web_sessions.pop(session_id, None)
         expires_at = _web_sessions.get(token, 0)
         if expires_at <= now:
             _web_sessions.pop(token, None)
@@ -634,6 +644,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         token = _session_token()
         with _web_sessions_lock:
+            now = time.time()
+            for session_id, expires_at in list(_web_sessions.items()):
+                if expires_at <= now:
+                    _web_sessions.pop(session_id, None)
             _web_sessions[token] = time.time() + 86400
         self.send_response(303)
         self.send_header("Set-Cookie", f"dot_news_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
@@ -1264,6 +1278,8 @@ def start_web_server(
         },
     )
     server = ThreadingHTTPServer((host, port), handler)
+    server.daemon_threads = True
+    server.block_on_close = False
     thread = Thread(target=server.serve_forever, name="dot-news-web", daemon=True)
     thread.start()
     return thread
