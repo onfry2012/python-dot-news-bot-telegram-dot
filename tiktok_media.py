@@ -141,10 +141,13 @@ def publish_image_to_public_storage(
     }
     try:
         existing = requests.get(api_url, headers=headers, params={"ref": github_branch}, timeout=30)
-        if existing.ok:
-            raise TikTokMediaError("storage_file_exists", f"Файл {filename} уже существует в GitHub storage")
-        elif existing.status_code != 404:
-            raise TikTokMediaError("storage_upload_failed", "Не удалось проверить файл в GitHub storage")
+        try:
+            if existing.ok:
+                raise TikTokMediaError("storage_file_exists", f"Файл {filename} уже существует в GitHub storage")
+            if existing.status_code != 404:
+                raise TikTokMediaError("storage_upload_failed", "Не удалось проверить файл в GitHub storage")
+        finally:
+            existing.close()
         content = base64.b64encode(path.read_bytes()).decode("ascii")
         payload = {
             "message": f"Add DOT News TikTok image {filename}",
@@ -152,14 +155,18 @@ def publish_image_to_public_storage(
             "branch": github_branch,
         }
         uploaded = requests.put(api_url, headers=headers, json=payload, timeout=30)
-        if not uploaded.ok:
-            raise TikTokMediaError("storage_upload_failed", "GitHub storage не принял изображение")
+        try:
+            if not uploaded.ok:
+                raise TikTokMediaError("storage_upload_failed", "GitHub storage не принял изображение")
+        finally:
+            uploaded.close()
     except requests.RequestException as exc:
         raise TikTokMediaError("storage_upload_failed", "Не удалось загрузить изображение в public storage") from exc
     public_url = urljoin(base_url.rstrip("/") + "/", filename)
     last_status: int | None = None
-    # GitHub Pages may need a short deployment window after the API commit.
-    for delay in (0, 5, 10, 20, 30):
+    # GitHub Pages can deploy asynchronously after the API commit. Keep the
+    # check bounded, but allow the normal Pages propagation window.
+    for delay in (0, 5, 10, 15, 20, 30, 45):
         if delay:
             time.sleep(delay)
         try:
