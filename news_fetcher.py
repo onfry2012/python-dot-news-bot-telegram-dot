@@ -11,7 +11,7 @@ import requests
 from config import load_config
 
 
-MAX_RSS_BYTES = 1 * 1024 * 1024
+MAX_RSS_BYTES = 512 * 1024
 RSS_TIMEOUT_SECONDS = 20
 
 
@@ -67,6 +67,7 @@ def fetch_news(source: Source, limit: int = 5) -> list[NewsItem]:
     finally:
         if response is not None:
             response.close()
+            response = None
     if getattr(feed, "bozo", False) and not feed.entries:
         raise RuntimeError(f"Could not parse RSS source: {source.name}")
 
