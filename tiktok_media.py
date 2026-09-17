@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from io import BytesIO
 import logging
 from pathlib import Path
@@ -164,9 +163,10 @@ def publish_image_to_public_storage(
         raise TikTokMediaError("storage_upload_failed", "Не удалось загрузить изображение в public storage") from exc
     public_url = urljoin(base_url.rstrip("/") + "/", filename)
     last_status: int | None = None
-    # GitHub Pages can deploy asynchronously after the API commit. Keep the
-    # check bounded, but allow the normal Pages propagation window.
-    for delay in (0, 5, 10, 15, 20, 30, 45):
+    # GitHub Pages may deploy asynchronously after the API commit. Do not keep
+    # the dashboard request open until the proxy returns 502; the UI exposes a
+    # retry action for the remaining propagation time.
+    for delay in (0, 2, 5, 8, 10):
         if delay:
             time.sleep(delay)
         try:
@@ -183,4 +183,3 @@ def publish_image_to_public_storage(
         "storage_public_url_unavailable",
         f"Изображение загружено, но public URL пока не отвечает HTTP 200 ({status_text})",
     )
-
