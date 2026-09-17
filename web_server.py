@@ -385,7 +385,12 @@ def _tiktok_panel(
             f'<form method="post" action="/action"><input type="hidden" name="action" value="tiktok_status">'
             f'<button class="tool" type="submit">Обновить статус TikTok</button></form></div>'
         )
-    return f'''<section class="tiktok-panel"><div class="section-head"><h2>TikTok Sandbox</h2><span class="updated">TikTok: <strong>{status_label}</strong></span></div>
+    connect_html = (
+        '<a class="publish" href="/auth/tiktok">🔗 Подключить TikTok</a>'
+        if not connected else
+        '<a class="tool" href="/auth/tiktok">🔄 Переподключить TikTok</a>'
+    )
+    return f'''<section class="tiktok-panel"><div class="section-head"><h2>TikTok Sandbox</h2><span class="updated">TikTok: <strong>{status_label}</strong> {connect_html}</span></div>
 <div class="tiktok-content"><div>{image_html}</div><div class="tiktok-fields"><div><label>Image URL</label><div class="tiktok-value">{escape(image_url) or "не задан"}</div></div><div><label>Title</label><div class="tiktok-value">{escape(title)}</div></div><div><label>Description</label><div class="tiktok-value">{escape(description)}</div></div><div><label>Privacy level</label><form method="post" action="/action"><input type="hidden" name="action" value="tiktok_publish"><select id="tiktok-privacy" name="privacy_level" required{disabled}>{options_html}</select><div id="tiktok-selected-privacy" class="tiktok-selected">Selected privacy: none</div><button class="publish" type="submit"{disabled}>Publish test photo to TikTok</button></form>{f'<small class="tiktok-error">{escape(reason)}</small>' if not can_publish else ''}</div></div></div>{history_html}</section>'''
 
 
