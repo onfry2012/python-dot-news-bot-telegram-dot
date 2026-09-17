@@ -733,6 +733,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self) -> None:
+        # Render may probe the service with HEAD. Keep this lightweight and
+        # independent of the dashboard session so health checks receive 200.
+        parsed = urlparse(self.path)
+        if parsed.path in {"/", "/health"}:
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_error(404)
+
     def _serve_tiktok_media(self, path: str) -> None:
         name = unquote(path.removeprefix("/tiktok/media/")).strip("/")
         if not name or Path(name).name != name:
