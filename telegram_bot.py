@@ -293,6 +293,54 @@ def recalculate_pending_drafts() -> tuple[int, int]:
     return recalculated, eligible
 
 
+async def drain_tiktok_auto_queue(processed_ids: set[int] | None = None) -> None:
+    """Publish at most one eligible draft to TikTok for the current scan.
+
+    This queue is deliberately independent from Telegram autopost. Telegram
+    may be disabled while TikTok automation remains enabled.
+    """
+    processed_ids = processed_ids or set()
+    if not tiktok_auto_publish_enabled() or len(processed_ids) >= config.max_tiktok_auto_per_scan:
+        logger.info(
+            "TikTok queue skipped: enabled=%s processed=%s limit=%s",
+            tiktok_auto_publish_enabled(),
+            len(processed_ids),
+            config.max_tiktok_auto_per_scan,
+        )
+        return
+    waiting_tiktok = sorted(
+        [
+            article for article in db.list_by_status("draft", limit=500)
+            if article.id not in processed_ids
+            and article.importance_score >= config.tiktok_auto_publish_score
+            and bool(article.image_url)
+            and not db.has_successful_tiktok_publication(article.id, article.event_id)
+        ],
+        key=lambda article: (article.importance_score, article.id),
+        reverse=True,
+    )
+    if not waiting_tiktok:
+        logger.info("TikTok queue empty: score_threshold=%s", config.tiktok_auto_publish_score)
+        return
+    article = waiting_tiktok[0]
+    processed_ids.add(article.id)
+    tiktok_status, tiktok_reason = await asyncio.to_thread(publish_article_to_tiktok, article)
+    db.record_automation_run(
+        article.id,
+        article.event_id,
+        article.importance_score,
+        "NOT_PUBLISHED",
+        tiktok_status,
+        tiktok_reason,
+    )
+    logger.info(
+        "TikTok independent queue result: article=%s status=%s reason=%s",
+        article.id,
+        tiktok_status,
+        tiktok_reason,
+    )
+
+
 async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = False, fetch_new: bool = True) -> int:
     logger.info("Scan memory: stage=start rss_mb=%s", _rss_mb())
     created = 0
@@ -356,6 +404,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     gc.collect()
 
     if not auto_publish:
+        # TikTok automation must not be blocked by the Telegram toggle.
+        await drain_tiktok_auto_queue()
         if send_drafts:
             for article in new_articles:
                 if article.decision in {"REVIEW", "UPDATE"}:
