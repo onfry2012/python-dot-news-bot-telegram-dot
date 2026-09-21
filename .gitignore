@@ -3,8 +3,13 @@
 .tiktok_publish_history.json
 .dot_news_app.pid
 .tiktok_media/
+.telegram_user.session
+.telegram_user.session-journal
+*.session
+*.session-journal
 assets/tiktok_fallback_source.png
 dot_news_bot.sqlite3
 dot_news_bot.backup-*.sqlite3
 logs/
+.local_worker_state.json
 __pycache__/
