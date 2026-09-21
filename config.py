@@ -70,6 +70,10 @@ class Config:
     max_telegram_auto_per_scan: int
     max_telegram_auto_per_hour: int
     max_tiktok_auto_per_scan: int
+    worker_api_url: str
+    worker_heartbeat_secret: str
+    worker_offline_after_minutes: int
+    worker_enabled: bool
 
 
 def _required(name: str) -> str:
@@ -166,4 +170,8 @@ def load_config() -> Config:
         max_telegram_auto_per_scan=max(int(os.getenv("MAX_TELEGRAM_AUTO_PER_SCAN", "1")), 1),
         max_telegram_auto_per_hour=max(int(os.getenv("MAX_TELEGRAM_AUTO_PER_HOUR", "12")), 1),
         max_tiktok_auto_per_scan=max(int(os.getenv("MAX_TIKTOK_AUTO_PER_SCAN", "1")), 1),
+        worker_api_url=os.getenv("WORKER_API_URL", "https://python-dot-news-bot-telegram-dot.onrender.com").rstrip("/"),
+        worker_heartbeat_secret=os.getenv("WORKER_HEARTBEAT_SECRET", ""),
+        worker_offline_after_minutes=max(int(os.getenv("WORKER_OFFLINE_AFTER_MINUTES", "20")), 1),
+        worker_enabled=os.getenv("WORKER_ENABLED", "true").lower() in {"1", "true", "yes", "on"},
     )
