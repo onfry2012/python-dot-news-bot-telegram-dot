@@ -308,9 +308,10 @@ async def drain_tiktok_auto_queue(processed_ids: set[int] | None = None) -> None
             config.max_tiktok_auto_per_scan,
         )
         return
+    waiting_articles = db.list_by_status("draft", limit=500) + db.list_by_status("published", limit=500)
     waiting_tiktok = sorted(
         [
-            article for article in db.list_by_status("draft", limit=500)
+            article for article in waiting_articles
             if article.id not in processed_ids
             and article.importance_score >= config.tiktok_auto_publish_score
             and bool(article.image_url)
@@ -465,39 +466,10 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             db.record_automation_run(article.id, article.event_id, article.importance_score, "FAILED", "NOT_ELIGIBLE", "telegram_publish_failed")
             await bot.send_message(config.admin_id, f"Ошибка автопубликации #{article.id}: {exc}")
 
-    # Run TikTok independently for waiting drafts.  This is intentionally
+    # Run TikTok independently for waiting articles.  This is intentionally
     # limited to one candidate per scan and still respects the existing
     # TikTok cooldown, duplicate protection, image checks, and score threshold.
-    if tiktok_auto_publish_enabled() and len(tiktok_processed_ids) < config.max_tiktok_auto_per_scan:
-        waiting_tiktok = sorted(
-            [
-                article for article in db.list_by_status("draft", limit=500)
-                if article.id not in tiktok_processed_ids
-                and article.importance_score >= config.tiktok_auto_publish_score
-                and bool(article.image_url)
-                and not db.has_successful_tiktok_publication(article.id, article.event_id)
-            ],
-            key=lambda article: (article.importance_score, article.id),
-            reverse=True,
-        )
-        if waiting_tiktok:
-            article = waiting_tiktok[0]
-            tiktok_processed_ids.add(article.id)
-            tiktok_status, tiktok_reason = await asyncio.to_thread(publish_article_to_tiktok, article)
-            db.record_automation_run(
-                article.id,
-                article.event_id,
-                article.importance_score,
-                "NOT_PUBLISHED",
-                tiktok_status,
-                tiktok_reason,
-            )
-            logger.info(
-                "TikTok independent queue result: article=%s status=%s reason=%s",
-                article.id,
-                tiktok_status,
-                tiktok_reason,
-            )
+    await drain_tiktok_auto_queue(tiktok_processed_ids)
 
     for article in new_articles:
         if article.id in selected_ids:
