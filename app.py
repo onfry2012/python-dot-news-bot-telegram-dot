@@ -59,6 +59,8 @@ def main() -> None:
             config.tiktok_auto_publish_enabled,
             config.web_username,
             config.web_password,
+            config.worker_heartbeat_secret,
+            config.worker_offline_after_minutes,
         )
         logger = logging.getLogger(__name__)
         logger.info("Web panel bound on %s:%s", config.web_host, config.web_port)
@@ -73,4 +75,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
