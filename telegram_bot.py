@@ -423,7 +423,6 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             [
                 article for article in db.list_by_status("draft", limit=500)
                 if article.id not in tiktok_processed_ids
-                and article.decision in {"AUTO_PUBLISH", "UPDATE"}
                 and article.importance_score >= config.tiktok_auto_publish_score
                 and bool(article.image_url)
                 and not db.has_successful_tiktok_publication(article.id, article.event_id)
