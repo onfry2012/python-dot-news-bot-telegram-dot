@@ -1,9 +1,13 @@
 """Registration of articles prepared by the optional local worker."""
+import logging
 from datetime import datetime, timezone
 
 from database import Database, Article
 from event_matcher import find_matching_event
 from news_ranker import calculate_importance, decision as ranking_decision, importance_breakdown
+
+
+logger = logging.getLogger(__name__)
 
 
 def register_prepared_article(db: Database, config, payload: dict) -> tuple[str, Article | None]:
@@ -68,4 +72,11 @@ def register_prepared_article(db: Database, config, payload: dict) -> tuple[str,
         config.importance_review_min, config.ranking_dry_run,
     )
     db.set_article_ranking(article_id, score, final_decision)
+    logger.info(
+        "Worker article registered: article=%s score=%s decision=%s has_image=%s",
+        article_id,
+        score,
+        final_decision,
+        bool(image_url),
+    )
     return "created", db.get_article(article_id)
