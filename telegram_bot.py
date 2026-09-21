@@ -383,7 +383,10 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     selected = unique_candidates[: min(config.max_telegram_auto_per_scan, hourly_remaining)]
     selected_ids = {article.id for article in selected}
     logger.info("Auto publish candidates selected: count=%s ids=%s", len(selected), [article.id for article in selected])
-    tiktok_auto_count = 0
+    # TikTok has its own queue.  It must not depend on the Telegram hourly
+    # cap: otherwise a Telegram cooldown can silently prevent every TikTok
+    # attempt even when eligible drafts are waiting.
+    tiktok_processed_ids: set[int] = set()
     for position, article in enumerate(selected):
         try:
             if position and get_publication_interval_minutes() > 0:
@@ -394,8 +397,8 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             db.record_publication_event("telegram", article.id, article.event_id, "auto", "PUBLISHED")
             if article.event_id:
                 db.update_event(article.event_id, status="published", last_published_summary=article.rewritten_post or "")
-            if tiktok_auto_count < config.max_tiktok_auto_per_scan:
-                tiktok_auto_count += 1
+            if len(tiktok_processed_ids) < config.max_tiktok_auto_per_scan:
+                tiktok_processed_ids.add(article.id)
                 tiktok_status, tiktok_reason = await asyncio.to_thread(publish_article_to_tiktok, article)
             else:
                 tiktok_status, tiktok_reason = "NOT_ELIGIBLE", "tiktok_scan_limit"
@@ -411,6 +414,41 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
             db.record_publication_event("telegram", article.id, article.event_id, "auto", "FAILED", "telegram_publish_failed")
             db.record_automation_run(article.id, article.event_id, article.importance_score, "FAILED", "NOT_ELIGIBLE", "telegram_publish_failed")
             await bot.send_message(config.admin_id, f"Ошибка автопубликации #{article.id}: {exc}")
+
+    # Run TikTok independently for waiting drafts.  This is intentionally
+    # limited to one candidate per scan and still respects the existing
+    # TikTok cooldown, duplicate protection, image checks, and score threshold.
+    if tiktok_auto_publish_enabled() and len(tiktok_processed_ids) < config.max_tiktok_auto_per_scan:
+        waiting_tiktok = sorted(
+            [
+                article for article in db.list_by_status("draft", limit=500)
+                if article.id not in tiktok_processed_ids
+                and article.decision in {"AUTO_PUBLISH", "UPDATE"}
+                and article.importance_score >= config.tiktok_auto_publish_score
+                and bool(article.image_url)
+                and not db.has_successful_tiktok_publication(article.id, article.event_id)
+            ],
+            key=lambda article: (article.importance_score, article.id),
+            reverse=True,
+        )
+        if waiting_tiktok:
+            article = waiting_tiktok[0]
+            tiktok_processed_ids.add(article.id)
+            tiktok_status, tiktok_reason = await asyncio.to_thread(publish_article_to_tiktok, article)
+            db.record_automation_run(
+                article.id,
+                article.event_id,
+                article.importance_score,
+                "NOT_PUBLISHED",
+                tiktok_status,
+                tiktok_reason,
+            )
+            logger.info(
+                "TikTok independent queue result: article=%s status=%s reason=%s",
+                article.id,
+                tiktok_status,
+                tiktok_reason,
+            )
 
     for article in new_articles:
         if article.id in selected_ids:
