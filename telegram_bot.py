@@ -293,7 +293,7 @@ def recalculate_pending_drafts() -> tuple[int, int]:
     return recalculated, eligible
 
 
-async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = False) -> int:
+async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = False, fetch_new: bool = True) -> int:
     logger.info("Scan memory: stage=start rss_mb=%s", _rss_mb())
     created = 0
     if auto_publish:
@@ -301,7 +301,7 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     pending_articles = [article for article in db.list_by_status("draft", limit=500) if article.decision in {"AUTO_PUBLISH", "UPDATE"}] if auto_publish else []
     pending_ids = {article.id for article in pending_articles}
     new_articles: list[Article] = list(pending_articles)
-    sources = load_sources(config.sources_path)
+    sources = load_sources(config.sources_path) if fetch_new else []
     source_count = len(sources)
     source_offset = int(db.get_setting("scan_source_offset", "0")) % max(source_count, 1)
     cycle_sources = [
@@ -981,10 +981,20 @@ async def scheduled_scan(bot: Bot) -> None:
             continue
         try:
             publish = auto_publish_enabled()
-            created = await scan_sources(bot, send_drafts=not publish, auto_publish=publish)
+            # When the local worker is healthy it performs RSS/OpenAI work.
+            # Render only drains the central publication queue. If the worker
+            # disappears, the normal bounded emergency scan resumes.
+            local_worker_online = config.worker_enabled and db.worker_is_online(config.worker_offline_after_minutes)
+            created = await scan_sources(
+                bot,
+                send_drafts=not publish,
+                auto_publish=publish,
+                fetch_new=not local_worker_online,
+            )
             mode = "опубликовано" if publish else "черновиков"
-            await bot.send_message(config.admin_id, f"Автоматическая подборка готова: {created} {mode}.\n\n{automation_status()}")
-            logger.info("Scheduled scan created %s items, auto publish=%s", created, publish)
+            if not local_worker_online or created:
+                await bot.send_message(config.admin_id, f"Автоматическая подборка готова: {created} {mode}.\n\n{automation_status()}")
+            logger.info("Scheduled scan created %s items, auto publish=%s worker_online=%s", created, publish, local_worker_online)
         except Exception:
             logger.exception("Scheduled scan failed")
 
