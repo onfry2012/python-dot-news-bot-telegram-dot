@@ -38,6 +38,8 @@ from tiktok_media import (
     storage_message,
 )
 from ai_writer import looks_untranslated_tiktok
+from config import load_config
+from worker_api import register_prepared_article
 logger = logging.getLogger(__name__)
 _tiktok_previews: dict[int, dict] = {}
 _tiktok_latest_preview_id: int | None = None
@@ -625,6 +627,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
     publication_interval_minutes: int
     web_username: str
     web_password: str
+    worker_heartbeat_secret: str
+    worker_offline_after_minutes: int
+
+    def _worker_authorized(self) -> bool:
+        configured = str(getattr(self, "worker_heartbeat_secret", "") or "")
+        supplied = self.headers.get("X-Worker-Secret", "")
+        return bool(configured and supplied and hmac.compare_digest(supplied, configured))
+
+    def _json_response(self, payload: dict, status: int = 200) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    @staticmethod
+    def _worker_config():
+        return load_config()
 
     def _require_auth(self, next_path: str) -> bool:
         if _is_authenticated(self):
@@ -670,6 +692,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         verification_file = "tiktokdjLYDPFBdChlI7SBcw8ODyLCVAJAzMyk.txt"
+        if parsed.path == "/api/worker/status":
+            if not self._worker_authorized():
+                self.send_error(401)
+                return
+            self._json_response({"online": self.db.worker_is_online(self.worker_offline_after_minutes)})
+            return
+        if parsed.path == "/api/worker/check":
+            if not self._worker_authorized():
+                self.send_error(401)
+                return
+            url = parse_qs(parsed.query).get("url", [""])[0]
+            self._json_response({"known": bool(url and self.db.has_article(url))})
+            return
         if parsed.path == "/login":
             query = parse_qs(parsed.query)
             self._login_page(next_path=_safe_next(query.get("next", ["/"])[0]))
@@ -839,6 +874,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         global _tiktok_latest_preview_id
         path = urlparse(self.path).path
+        if path == "/api/worker/heartbeat":
+            if not self._worker_authorized():
+                self.send_error(401)
+                return
+            self.db.worker_heartbeat()
+            self._json_response({"ok": True, "online": True})
+            return
+        if path == "/api/worker/submit":
+            if not self._worker_authorized():
+                self.send_error(401)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                result, article = register_prepared_article(self.db, self._worker_config(), payload)
+                self._json_response({"result": result, "article_id": article.id if article else None})
+            except Exception as exc:
+                logger.exception("Local worker submit failed")
+                self._json_response({"error": str(exc)}, status=400)
+            return
         if path == "/login":
             length = int(self.headers.get("Content-Length", "0"))
             form = parse_qs(self.rfile.read(length).decode("utf-8"))
@@ -1284,6 +1339,8 @@ def start_web_server(
     tiktok_auto_publish_default: bool = False,
     web_username: str = "admin",
     web_password: str = "",
+    worker_heartbeat_secret: str = "",
+    worker_offline_after_minutes: int = 20,
 ) -> Thread:
     handler = type(
         "ConfiguredDashboardHandler",
@@ -1316,6 +1373,8 @@ def start_web_server(
             "tiktok_auto_publish_default": tiktok_auto_publish_default,
             "web_username": web_username,
             "web_password": web_password,
+            "worker_heartbeat_secret": worker_heartbeat_secret,
+            "worker_offline_after_minutes": worker_offline_after_minutes,
         },
     )
     server = ThreadingHTTPServer((host, port), handler)
@@ -1324,4 +1383,3 @@ def start_web_server(
     thread = Thread(target=server.serve_forever, name="dot-news-web", daemon=True)
     thread.start()
     return thread
-
