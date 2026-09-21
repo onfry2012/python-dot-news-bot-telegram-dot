@@ -972,6 +972,16 @@ async def run_bot() -> None:
 
 
 async def scheduled_scan(bot: Bot) -> None:
+    # During a Render restart the local worker may need a few seconds to
+    # reconnect. Do not launch an expensive emergency scan immediately and
+    # create a second memory spike; give the worker its configured grace
+    # period first. If it stays offline, the next pass is the fallback scan.
+    if config.worker_enabled and auto_scan_enabled() and not db.worker_is_online(config.worker_offline_after_minutes):
+        logger.info(
+            "Hybrid mode: local worker is offline at startup; waiting %s minutes before fallback scan",
+            config.worker_offline_after_minutes,
+        )
+        await asyncio.sleep(config.worker_offline_after_minutes * 60)
     first_cycle = True
     while True:
         if not first_cycle:
