@@ -7,6 +7,7 @@ from pathlib import Path
 
 import feedparser
 import requests
+from bs4 import BeautifulSoup
 
 from config import load_config
 
@@ -75,7 +76,7 @@ def fetch_news(source: Source, limit: int = 5) -> list[NewsItem]:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=load_config().max_news_age_hours)
     for entry in feed.entries[:limit]:
         link = getattr(entry, "link", "")
-        title = getattr(entry, "title", "").strip()
+        title = BeautifulSoup(str(getattr(entry, "title", "")), "html.parser").get_text(" ", strip=True)
         if not link or not title:
             continue
         published = getattr(entry, "published_parsed", None) or getattr(entry, "updated_parsed", None)
@@ -86,7 +87,8 @@ def fetch_news(source: Source, limit: int = 5) -> list[NewsItem]:
         summary = getattr(entry, "summary", "") or getattr(entry, "description", "")
         # A malformed feed can include a full article or embedded page in the
         # description. Keep prompts and the in-memory scan batch bounded.
-        summary = str(summary)[:8000]
+        summary = BeautifulSoup(str(summary), "html.parser").get_text(" ", strip=True)
+        summary = " ".join(summary.split())[:5000]
         media_url = _entry_media_url(entry)
         items.append(
             NewsItem(
@@ -112,4 +114,3 @@ def _entry_media_url(entry: object) -> str | None:
             if url and (mime.startswith("image/") or key != "enclosures"):
                 return str(url)
     return None
-

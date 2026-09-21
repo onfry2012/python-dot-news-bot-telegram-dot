@@ -29,6 +29,7 @@ from config import load_config
 from database import Article, Database
 from media_fetcher import fetch_og_image
 from news_fetcher import NewsItem, fetch_news, load_sources
+from telegram_fetcher import fetch_telegram_news
 from event_matcher import find_matching_event
 from news_ranker import calculate_importance, decision as ranking_decision, importance_breakdown
 from tiktok_media import TikTokMediaError, prepare_tiktok_image, publish_image_to_public_storage
@@ -309,16 +310,36 @@ async def scan_sources(bot: Bot, send_drafts: bool = True, auto_publish: bool = 
     ] if source_count else []
     db.set_setting("scan_source_offset", str((source_offset + len(cycle_sources)) % max(source_count, 1)))
     items_to_process: list[NewsItem] = []
+    overflow_items: list[NewsItem] = []
     for source in cycle_sources:
         try:
             items = fetch_news(source, limit=config.scan_limit_per_source)
         except Exception as exc:
             await bot.send_message(config.admin_id, f"Не удалось прочитать RSS {source.name}: {exc}")
             continue
-        items_to_process.extend(items)
+        # Take one lead item from every source first so one feed cannot
+        # consume the whole cycle cap.
+        if items:
+            items_to_process.append(items[0])
+            overflow_items.extend(items[1:])
         del items
         if len(items_to_process) >= config.scan_limit_total:
             break
+
+    if len(items_to_process) < config.scan_limit_total:
+        remaining = config.scan_limit_total - len(items_to_process)
+        items_to_process.extend(overflow_items[:remaining])
+    overflow_items.clear()
+
+    # Telegram is an optional secondary source. Keep its contribution inside
+    # the same hard scan cap so it cannot increase memory or OpenAI load.
+    if len(items_to_process) < config.scan_limit_total:
+        try:
+            telegram_items = await fetch_telegram_news(config, db)
+            items_to_process.extend(telegram_items[: config.scan_limit_total - len(items_to_process)])
+            del telegram_items
+        except Exception:
+            logger.exception("Telegram channel collector failed")
 
     logger.info("Scan memory: stage=rss_loaded rss_mb=%s sources=%s", _rss_mb(), len(cycle_sources))
     gc.collect()
@@ -417,6 +438,12 @@ def publish_article_to_tiktok(article: Article) -> tuple[str, str]:
     if not tiktok_auto_publish_enabled():
         logger.info("TikTok auto publish decision: article=%s status=NOT_ELIGIBLE reason=disabled", article.id)
         return "NOT_ELIGIBLE", "disabled"
+    if config.tiktok_auto_min_interval_minutes and db.has_recent_tiktok_auto_attempt(config.tiktok_auto_min_interval_minutes):
+        logger.info(
+            "TikTok auto publish decision: article=%s status=NOT_ELIGIBLE reason=cooldown",
+            article.id,
+        )
+        return "NOT_ELIGIBLE", "tiktok_cooldown"
     if db.has_successful_tiktok_publication(article.id, article.event_id):
         logger.info("TikTok auto publish decision: article=%s status=NOT_ELIGIBLE reason=already_published", article.id)
         return "NOT_ELIGIBLE", "already_published"
@@ -995,4 +1022,3 @@ async def publish_article(bot: Bot, article: Article) -> None:
             if attempt + 1 < max(config.http_retry_count, 1):
                 await asyncio.sleep((2, 5, 10)[min(attempt, 2)])
     raise RuntimeError(f"Telegram publish failed after retries: {last_error}") from last_error
-

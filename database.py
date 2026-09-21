@@ -412,6 +412,17 @@ class Database:
             ).fetchone()
             return int(row[0] or 0)
 
+    def has_recent_tiktok_auto_attempt(self, minutes: int = 60) -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT 1 FROM publication_events
+                   WHERE platform = 'tiktok' AND mode = 'auto'
+                     AND created_at >= datetime('now', ?)
+                   LIMIT 1""",
+                (f"-{max(minutes, 0)} minutes",),
+            ).fetchone()
+            return row is not None
+
     def list_recent_automation_runs(self, limit: int = 10) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(

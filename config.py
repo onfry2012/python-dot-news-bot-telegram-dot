@@ -66,6 +66,7 @@ class Config:
     github_token: str
     tiktok_auto_publish_enabled: bool
     tiktok_auto_publish_score: int
+    tiktok_auto_min_interval_minutes: int
     max_telegram_auto_per_scan: int
     max_telegram_auto_per_hour: int
     max_tiktok_auto_per_scan: int
@@ -111,11 +112,11 @@ def load_config() -> Config:
         sources_path=os.getenv("SOURCES_PATH", "sources.json"),
         # Keep the 512 MB Render instance bounded. Source rotation still
         # reaches every RSS source over subsequent cycles.
-        scan_sources_per_cycle=max(min(int(os.getenv("SCAN_SOURCES_PER_CYCLE", "2")), 2), 1),
+        scan_sources_per_cycle=max(min(int(os.getenv("SCAN_SOURCES_PER_CYCLE", "3")), 3), 1),
         # Hard caps protect the 512 MB Render instance even if an old or
         # overly large environment value remains configured there.
         scan_limit_per_source=max(min(int(os.getenv("SCAN_LIMIT_PER_SOURCE", "10")), 2), 1),
-        scan_limit_total=max(min(int(os.getenv("SCAN_LIMIT_TOTAL", "50")), 2), 1),
+        scan_limit_total=max(min(int(os.getenv("SCAN_LIMIT_TOTAL", "50")), 3), 1),
         telegram_user_api_id=int(os.getenv("TELEGRAM_USER_API_ID", "0") or 0),
         telegram_user_api_hash=os.getenv("TELEGRAM_USER_API_HASH", ""),
         telegram_user_session_path=_migrate_state_file(os.getenv("TELEGRAM_USER_SESSION_PATH", ".telegram_user.session"), data_dir),
@@ -161,8 +162,8 @@ def load_config() -> Config:
         github_token=os.getenv("GITHUB_TOKEN", ""),
         tiktok_auto_publish_enabled=os.getenv("TIKTOK_AUTO_PUBLISH_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
         tiktok_auto_publish_score=int(os.getenv("TIKTOK_AUTO_PUBLISH_SCORE", "85")),
+        tiktok_auto_min_interval_minutes=max(int(os.getenv("TIKTOK_AUTO_MIN_INTERVAL_MINUTES", "15")), 0),
         max_telegram_auto_per_scan=max(int(os.getenv("MAX_TELEGRAM_AUTO_PER_SCAN", "1")), 1),
         max_telegram_auto_per_hour=max(int(os.getenv("MAX_TELEGRAM_AUTO_PER_HOUR", "12")), 1),
         max_tiktok_auto_per_scan=max(int(os.getenv("MAX_TIKTOK_AUTO_PER_SCAN", "1")), 1),
     )
-
