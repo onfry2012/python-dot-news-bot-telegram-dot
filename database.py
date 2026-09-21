@@ -175,6 +175,20 @@ class Database:
                 (name, value),
             )
 
+    def worker_heartbeat(self) -> None:
+        self.set_setting("local_worker_last_seen", str(__import__("time").time()))
+
+    def worker_last_seen(self) -> float | None:
+        try:
+            value = float(self.get_setting("local_worker_last_seen", "0"))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def worker_is_online(self, offline_after_minutes: int) -> bool:
+        last_seen = self.worker_last_seen()
+        return bool(last_seen and (__import__("time").time() - last_seen) <= max(offline_after_minutes, 1) * 60)
+
     def has_article(self, url: str) -> bool:
         with self.connect() as conn:
             row = conn.execute("SELECT 1 FROM articles WHERE original_url = ?", (url,)).fetchone()
