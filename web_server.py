@@ -572,7 +572,7 @@ def render_dashboard(
         toolbar_html += '<a class="tool" href="/?tab=tiktok">TikTok Sandbox</a>'
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DOT NEWS · мониторинг</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>DOT NEWS · мониторинг</title>
 <style>
 :root {{ color-scheme: dark; --bg:#07131a; --sidebar:#061018; --panel:#0d1d26; --panel-2:#112832; --line:#1c3b46; --muted:#8fa8b2; --white:#edf7f8; --cyan:#62d6e5; --gold:#f0c75e; --yellow:#f0c75e; --red:#ff7d84; --green:#68dfa4; }}
 .brand p {{ margin:6px 0 0; color:var(--muted); font-size:13px; }} .tabs {{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:20px; }} .tab {{ color:var(--muted); text-decoration:none; padding:10px 14px; border-bottom:2px solid transparent; }} .tab:hover,.tab.active {{ color:var(--white); border-color:var(--green); }} .dashboard-tools {{ display:block; }}
@@ -660,7 +660,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _login_page(self, status: int = 200, message: str = "", next_path: str = "/") -> None:
         notice = f'<p class="error">{escape(message)}</p>' if message else ""
         body = f'''<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DOT NEWS — вход</title>
-<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#071017;color:#eef5f7;font:16px system-ui,sans-serif}}main{{width:min(360px,calc(100% - 32px));padding:28px;border:1px solid #19333d;border-radius:10px;background:#0d1b22;box-sizing:border-box}}h1{{margin:0 0 8px;font-size:24px}}p{{color:#8da5ad;margin:0 0 20px}}label{{display:block;color:#8da5ad;font-size:13px;margin:14px 0 6px}}input{{width:100%;box-sizing:border-box;padding:11px;border:1px solid #29434c;border-radius:6px;background:#071017;color:#eef5f7;font:inherit}}button{{width:100%;margin-top:20px;padding:11px;border:0;border-radius:6px;background:#24c6d8;color:#061014;font-weight:700;cursor:pointer}}.error{{color:#ff9b9b;margin:0 0 12px}}</style>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#071017;color:#eef5f7;font:16px system-ui,sans-serif}}main{{width:min(360px,calc(100% - 32px));padding:28px;border:1px solid #19333d;border-radius:10px;background:#0d1b22;box-sizing:border-box}}h1{{margin:0 0 8px;font-size:24px}}p{{color:#8da5ad;margin:0 0 20px}}label{{display:block;color:#8da5ad;font-size:13px;margin:14px 0 6px}}input{{width:100%;box-sizing:border-box;padding:11px;border:1px solid #29434c;border-radius:6px;background:#071017;color:#eef5f7;font:inherit}}button{{width:100%;margin-top:20px;padding:11px;border:0;border-radius:6px;background:#24c6d8;color:#061014;font-weight:700;cursor:pointer}}.error{{color:#ff9b9b;margin:0 0 12px}}</style>
 <main><h1>🔴 DOT NEWS</h1><p>Вход в редакционную панель</p>{notice}<form method="post" action="/login"><input type="hidden" name="next" value="{escape(_safe_next(next_path), quote=True)}"><label for="username">Логин</label><input id="username" name="username" autocomplete="username" required><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">Войти</button></form></main></html>'''.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -722,6 +722,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # TikTok must be able to verify this one file without opening the panel.
         if parsed.path == f"/{verification_file}":
             self._serve_tiktok_verification(verification_file)
+            return
+        if parsed.path == "/tiktok-review":
+            self._public_tiktok_review_page()
+            return
+        if parsed.path == "/favicon.svg":
+            self._serve_favicon()
             return
         if not self._require_auth(self.path):
             return
@@ -785,7 +791,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # Render may probe the service with HEAD. Keep this lightweight and
         # independent of the dashboard session so health checks receive 200.
         parsed = urlparse(self.path)
-        if parsed.path in {"/", "/health"}:
+        if parsed.path in {"/", "/health", "/tiktok-review", "/favicon.svg"}:
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -819,6 +825,37 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _public_tiktok_review_page(self) -> None:
+        """Public product page for TikTok app review; the editor stays protected."""
+        body = '''<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>DOT News — editorial news automation</title>
+<style>
+:root{color-scheme:dark;--bg:#07131a;--panel:#0d1d26;--line:#1c3b46;--muted:#9ab0b8;--white:#edf7f8;--cyan:#62d6e5;--red:#ef3340}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--white);font:16px/1.55 Inter,Segoe UI,Arial,sans-serif}main{max-width:1080px;margin:auto;padding:34px 22px 64px}header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:28px;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:12px}.brand img{width:48px;height:48px}.brand strong{font-size:22px}.brand span{display:block;color:var(--muted);font-size:13px}a{color:var(--cyan)}.button{display:inline-block;padding:10px 15px;border:1px solid var(--cyan);border-radius:6px;text-decoration:none;color:#061014;background:var(--cyan);font-weight:700}.hero{padding:62px 0 44px;max-width:760px}.eyebrow{color:var(--cyan);font-size:13px;text-transform:uppercase;letter-spacing:.08em}.hero h1{font-size:clamp(34px,6vw,64px);line-height:1.05;margin:12px 0 18px}.hero p{color:var(--muted);font-size:19px;max-width:700px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 42px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px}.card h2{font-size:18px;margin:0 0 8px}.card p{color:var(--muted);margin:0}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 42px}.step{border-top:2px solid var(--red);padding:14px 0;color:var(--muted)}.step b{display:block;color:var(--white);margin-bottom:5px}.footer{padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}@media(max-width:720px){header{align-items:flex-start;flex-direction:column}.grid,.flow{grid-template-columns:1fr}.hero{padding-top:42px}}
+</style></head><body><main><header><div class="brand"><img src="/favicon.svg" alt="DOT News"><div><strong>DOT News</strong><span>Russian-language editorial news automation</span></div></div><a class="button" href="/login">Editorial panel</a></header>
+<section class="hero"><div class="eyebrow">DOT News platform</div><h1>News from Poland, Ukraine and the world.</h1><p>DOT News collects current stories from multiple RSS and Telegram sources, groups related reports, checks duplicates, ranks importance and prepares concise Russian-language posts for editorial review and publication.</p></section>
+<section class="grid"><article class="card"><h2>Current coverage</h2><p>Poland, Ukraine, Europe, politics, security, economy and major international events.</p></article><article class="card"><h2>Editorial workflow</h2><p>Every story passes through source checks, semantic duplicate protection, ranking and a human-controlled publication queue.</p></article><article class="card"><h2>Media-aware posts</h2><p>When a verified image is available, the editor can preview the prepared post before publishing it to connected channels.</p></article></section>
+<h2>How DOT News works</h2><div class="flow"><div class="step"><b>01 · Collect</b>RSS and approved source feeds are scanned on a schedule.</div><div class="step"><b>02 · Understand</b>Related reports are grouped and summarized in Russian.</div><div class="step"><b>03 · Rank</b>Freshness, relevance, event type and audience value are scored.</div><div class="step"><b>04 · Publish</b>Telegram publication is controlled from the secured editorial panel.</div></div>
+<section class="card"><h2>Responsible publishing</h2><p>DOT News keeps the editorial panel behind authentication. Public visitors can read about the product here, while publication controls and credentials remain private. For questions, contact the DOT News administrator.</p></section>
+<footer class="footer">DOT News · <a href="/tiktok-review">Product information</a> · <a href="/login">Editorial panel</a></footer></main></body></html>'''.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_favicon(self) -> None:
+        candidate = Path(__file__).with_name("assets") / "dot-news-icon.svg"
+        payload = candidate.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/svg+xml")
+        self.send_header("Cache-Control", "public, max-age=3600")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
