@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="180" fill="#050607"/>
+  <circle cx="512" cy="512" r="360" fill="#050607" stroke="#20262b" stroke-width="12"/>
+  <text x="512" y="570" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="190" font-weight="700" fill="#f4f7f8">DOT</text>
+  <circle cx="752" cy="665" r="34" fill="#ef3340"/>
+</svg>
